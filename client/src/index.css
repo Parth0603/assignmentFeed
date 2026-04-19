@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area padding for notch phones */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Hide scrollbar but keep scrolling */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Prevent pull-to-refresh on mobile */
+  html {
+    overscroll-behavior: none;
+  }
+
+  /* Smooth touch scrolling */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  input, textarea, button {
+    font-family: inherit;
+  }
+}
