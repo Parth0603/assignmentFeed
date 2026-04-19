@@ -5,14 +5,27 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// GET /api/posts - Feed, Paginated
+const SUBJECTS = [
+  'Mathematics 3',
+  'Operating System',
+  'Analysis and Design of Algorithm',
+  'Computer Architecture and Organisation',
+  'Software Development'
+];
+
+// GET /api/posts - Feed, Paginated + Filter by subject
 router.get('/', requireAuth, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const posts = await Post.find()
+    const filter = {};
+    if (req.query.subject && SUBJECTS.includes(req.query.subject)) {
+      filter.subject = req.query.subject;
+    }
+
+    const posts = await Post.find(filter)
       .populate('userId', 'name')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -39,40 +52,50 @@ router.get('/user/:id', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/posts - Create Post
+// POST /api/posts - Create Post or Tweet
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { imageBase64, caption } = req.body;
+    const { type, imageBase64, caption, subject } = req.body;
 
-    if (!imageBase64 || !caption) {
-      return res.status(400).json({ error: 'Image and caption are required' });
+    if (!caption) {
+      return res.status(400).json({ error: 'Caption is required' });
     }
-
     if (caption.length > 280) {
       return res.status(400).json({ error: 'Caption must be 280 characters or less' });
     }
+    if (!subject || !SUBJECTS.includes(subject)) {
+      return res.status(400).json({ error: 'Valid subject is required' });
+    }
 
-    // Configure Cloudinary at request time (after dotenv has loaded)
-    cloudinary.config({
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET
-    });
+    let imageUrl = null;
 
-    // Upload to cloudinary
-    const uploadResponse = await cloudinary.uploader.upload(imageBase64, {
-      folder: 'assignment_feed'
-    });
+    // Only upload image for 'post' type
+    if (type === 'post') {
+      if (!imageBase64) {
+        return res.status(400).json({ error: 'Image is required for posts' });
+      }
+
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET
+      });
+
+      const uploadResponse = await cloudinary.uploader.upload(imageBase64, {
+        folder: 'assignment_feed'
+      });
+      imageUrl = uploadResponse.secure_url;
+    }
 
     const newPost = new Post({
       userId: req.user._id,
-      imageUrl: uploadResponse.secure_url,
-      caption: caption
+      type: type || 'post',
+      imageUrl,
+      caption,
+      subject
     });
 
     await newPost.save();
-
-    // Populate user info before returning
     await newPost.populate('userId', 'name');
 
     res.status(201).json(newPost);
@@ -91,29 +114,27 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    // Only the owner can delete
     if (post.userId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Not authorized to delete this post' });
     }
 
-    // Delete image from Cloudinary
-    // URL looks like: https://res.cloudinary.com/.../assignment_feed/abc123.jpg
-    // public_id is: assignment_feed/abc123
-    try {
-      const urlParts = post.imageUrl.split('/');
-      const folderAndFile = urlParts.slice(-2).join('/'); // "assignment_feed/abc123.jpg"
-      const publicId = folderAndFile.replace(/\.[^/.]+$/, ''); // remove extension
-      
-      cloudinary.config({
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET
-      });
+    // Delete image from Cloudinary if it exists
+    if (post.imageUrl) {
+      try {
+        const urlParts = post.imageUrl.split('/');
+        const folderAndFile = urlParts.slice(-2).join('/');
+        const publicId = folderAndFile.replace(/\.[^/.]+$/, '');
 
-      await cloudinary.uploader.destroy(publicId);
-    } catch (cloudErr) {
-      console.error('Cloudinary delete error (continuing):', cloudErr.message);
-      // Still delete from DB even if Cloudinary fails
+        cloudinary.config({
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+        });
+
+        await cloudinary.uploader.destroy(publicId);
+      } catch (cloudErr) {
+        console.error('Cloudinary delete error (continuing):', cloudErr.message);
+      }
     }
 
     await post.deleteOne();
