@@ -77,50 +77,66 @@ export default function Profile() {
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-0.5 sm:gap-3">
-          {posts.map(post => (
-            <div 
-              key={post._id} 
-              className="aspect-square bg-gray-100 sm:rounded-xl overflow-hidden group relative cursor-pointer active:opacity-80"
-              onClick={() => setPreviewPost(post)}
-            >
-              <img 
-                src={post.imageUrl} 
-                alt="Post" 
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                loading="lazy"
-                draggable={false}
-              />
-              {/* Overlay with delete button */}
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 sm:p-4">
-                <p className="hidden sm:block text-white text-sm font-medium text-center line-clamp-2 mb-3">
-                  {post.caption}
-                </p>
+          {posts.map(post => {
+            const isTweet = post.type === 'tweet';
+            const isPdf = post.type === 'pdf';
+            const imageUrl = isPdf && post.fileUrl ? post.fileUrl.replace(/\.pdf$/i, '.jpg') : post.imageUrl;
+
+            return (
+              <div 
+                key={post._id} 
+                className={`aspect-square bg-gray-100 sm:rounded-xl overflow-hidden group relative cursor-pointer active:opacity-80 ${isTweet ? 'bg-purple-50' : ''}`}
+                onClick={() => {
+                  if (!isTweet) setPreviewPost(post);
+                }}
+              >
+                {isTweet ? (
+                  <div className="w-full h-full flex items-center justify-center p-3 sm:p-5">
+                    <p className="text-purple-900 text-xs sm:text-sm font-medium line-clamp-4 leading-relaxed break-words text-center">
+                      {post.caption}
+                    </p>
+                  </div>
+                ) : (
+                  <img 
+                    src={imageUrl} 
+                    alt="Post" 
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
+                    draggable={false}
+                  />
+                )}
+                {/* Overlay with delete button */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 sm:p-4">
+                  <p className="hidden sm:block text-white text-sm font-medium text-center line-clamp-2 mb-3">
+                    {post.caption}
+                  </p>
+                  <button
+                    onClick={(e) => handleDelete(post._id, e)}
+                    disabled={deletingId === post._id}
+                    className="p-2 bg-red-500/90 hover:bg-red-600 active:bg-red-700 text-white rounded-full transition-colors shadow-lg"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+
+                {/* Mobile: always-visible small delete icon in corner */}
                 <button
                   onClick={(e) => handleDelete(post._id, e)}
                   disabled={deletingId === post._id}
-                  className="p-2 bg-red-500/90 hover:bg-red-600 active:bg-red-700 text-white rounded-full transition-colors shadow-lg"
+                  className="sm:hidden absolute top-1 right-1 p-1.5 bg-black/50 active:bg-red-600 text-white rounded-full z-10"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={12} />
                 </button>
               </div>
-
-              {/* Mobile: always-visible small delete icon in corner */}
-              <button
-                onClick={(e) => handleDelete(post._id, e)}
-                disabled={deletingId === post._id}
-                className="sm:hidden absolute top-1 right-1 p-1.5 bg-black/50 active:bg-red-600 text-white rounded-full z-10"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Preview modal */}
       {previewPost && (
         <ImagePreviewModal
-          imageUrl={previewPost.imageUrl}
+          imageUrl={previewPost.type === 'pdf' ? previewPost.fileUrl?.replace(/\.pdf$/i, '.jpg') : previewPost.imageUrl}
           caption={previewPost.caption}
           userName={user?.name}
           onClose={() => setPreviewPost(null)}
