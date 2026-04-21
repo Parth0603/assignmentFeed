@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
-import { UserCircle, BookOpen } from 'lucide-react';
+import { UserCircle, BookOpen, FileText, ExternalLink } from 'lucide-react';
 import ImagePreviewModal from './ImagePreviewModal';
 
 const subjectColors = {
@@ -15,6 +15,7 @@ export default function PostCard({ post }) {
   const [showPreview, setShowPreview] = useState(false);
   const formattedDate = dayjs(post.createdAt).format('DD MMM YYYY, HH:mm');
   const isTweet = post.type === 'tweet';
+  const isPdf = post.type === 'pdf';
 
   return (
     <>
@@ -40,8 +41,30 @@ export default function PostCard({ post }) {
           )}
         </div>
 
+        {/* PDF — link to file */}
+        {isPdf && post.fileUrl && (
+          <div className="px-5 pb-3 pt-1">
+            <a 
+              href={post.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center p-4 bg-red-50/50 border border-red-100 rounded-xl hover:bg-red-50 hover:border-red-200 transition-all group shadow-sm"
+            >
+              <div className="p-2.5 bg-red-100/80 text-red-600 rounded-lg mr-4 group-hover:bg-red-200/80 group-hover:scale-105 transition-all">
+                <FileText size={26} strokeWidth={1.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 truncate text-[15px]">View Document</p>
+                <p className="text-[13px] text-gray-500 flex items-center mt-0.5">
+                  PDF automatically opens <ExternalLink size={12} className="ml-1 opacity-70" />
+                </p>
+              </div>
+            </a>
+          </div>
+        )}
+
         {/* Image — only for posts, not tweets */}
-        {!isTweet && post.imageUrl && (
+        {!isTweet && !isPdf && post.imageUrl && (
           <div 
             className="bg-gray-100 w-full overflow-hidden cursor-pointer"
             onClick={() => setShowPreview(true)}
@@ -56,9 +79,10 @@ export default function PostCard({ post }) {
         )}
 
         {/* Caption */}
-        <div className={`px-5 ${isTweet ? 'py-5' : 'py-3'}`}>
+        <div className={`px-5 ${isTweet ? 'py-5' : (isPdf ? 'pb-5' : 'py-3')}`}>
           <p className={`text-gray-800 leading-relaxed break-words ${isTweet ? 'text-base' : 'text-[15px]'}`}>
-            {!isTweet && <span className="font-semibold mr-2 text-sm">{post.userId?.name}</span>}
+            {!isTweet && !isPdf && <span className="font-semibold mr-2 text-sm">{post.userId?.name}</span>}
+            {isPdf && <span className="font-semibold mr-2 text-sm text-gray-900">{post.userId?.name}</span>}
             {post.caption}
           </p>
         </div>

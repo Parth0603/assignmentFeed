@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import toast from 'react-hot-toast';
 
-export default function FileUploader({ onImageSelected, children }) {
+export default function FileUploader({ onFileSelected, acceptPdf = false, children }) {
   const fileInputRef = useRef(null);
 
   const handleClick = () => {
@@ -12,8 +12,14 @@ export default function FileUploader({ onImageSelected, children }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (acceptPdf && file.type === 'application/pdf') {
+       onFileSelected({ file, type: 'pdf' });
+       e.target.value = '';
+       return;
+    }
+
     if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
+      toast.error(acceptPdf ? 'Please select an image or PDF file' : 'Please select an image file');
       return;
     }
 
@@ -38,7 +44,7 @@ export default function FileUploader({ onImageSelected, children }) {
 
         // Compress
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        onImageSelected(dataUrl);
+        onFileSelected({ dataUrl, type: 'image' });
       };
       img.src = event.target.result;
     };
@@ -54,7 +60,7 @@ export default function FileUploader({ onImageSelected, children }) {
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept="image/jpeg, image/png, image/webp"
+        accept={acceptPdf ? "image/jpeg, image/png, image/webp, application/pdf" : "image/jpeg, image/png, image/webp"}
         className="hidden"
       />
       {children}

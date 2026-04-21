@@ -52,10 +52,30 @@ router.get('/user/:id', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/posts/upload-signature - Get signature for Cloudinary direct upload
+router.get('/upload-signature', requireAuth, (req, res) => {
+  try {
+    const timestamp = Math.round((new Date).getTime() / 1000);
+    const signature = cloudinary.utils.api_sign_request(
+      { timestamp, folder: 'assignment_feed' },
+      process.env.CLOUDINARY_API_SECRET
+    );
+    res.json({
+      timestamp,
+      signature,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      apiKey: process.env.CLOUDINARY_API_KEY
+    });
+  } catch (error) {
+    console.error('Signature generation error:', error);
+    res.status(500).json({ error: 'Failed to generate upload signature' });
+  }
+});
+
 // POST /api/posts - Create Post or Tweet
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { type, imageBase64, caption, subject } = req.body;
+    const { type, imageUrl, fileUrl, caption, subject } = req.body;
 
     if (!caption) {
       return res.status(400).json({ error: 'Caption is required' });
@@ -66,31 +86,18 @@ router.post('/', requireAuth, async (req, res) => {
     if (!subject || !SUBJECTS.includes(subject)) {
       return res.status(400).json({ error: 'Valid subject is required' });
     }
-
-    let imageUrl = null;
-
-    // Only upload image for 'post' type
-    if (type === 'post') {
-      if (!imageBase64) {
-        return res.status(400).json({ error: 'Image is required for posts' });
-      }
-
-      cloudinary.config({
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET
-      });
-
-      const uploadResponse = await cloudinary.uploader.upload(imageBase64, {
-        folder: 'assignment_feed'
-      });
-      imageUrl = uploadResponse.secure_url;
+    if (type === 'post' && !imageUrl) {
+      return res.status(400).json({ error: 'Image URL is required for posts' });
+    }
+    if (type === 'pdf' && !fileUrl) {
+      return res.status(400).json({ error: 'PDF URL is required for pdf posts' });
     }
 
     const newPost = new Post({
       userId: req.user._id,
       type: type || 'post',
       imageUrl,
+      fileUrl,
       caption,
       subject
     });
@@ -118,10 +125,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to delete this post' });
     }
 
-    // Delete image from Cloudinary if it exists
-    if (post.imageUrl) {
+    // Delete image or pdf from Cloudinary if it exists
+    const urlToDelete = post.imageUrl || post.fileUrl;
+    if (urlToDelete) {
       try {
-        const urlParts = post.imageUrl.split('/');
+        const urlParts = urlToDelete.split('/');
         const folderAndFile = urlParts.slice(-2).join('/');
         const publicId = folderAndFile.replace(/\.[^/.]+$/, '');
 
@@ -131,7 +139,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
           api_secret: process.env.CLOUDINARY_API_SECRET
         });
 
-        await cloudinary.uploader.destroy(publicId);
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (e) {
+          await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+        }
       } catch (cloudErr) {
         console.error('Cloudinary delete error (continuing):', cloudErr.message);
       }
